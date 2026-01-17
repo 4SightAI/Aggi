@@ -1,7 +1,13 @@
 # Aggi
 Aggi the AI
 
-## Forking Github Repo
+
+
+<ul>
+<li>
+## Steps to execute
+</li>
+#### Github Repo Fork
 <ol>
 <li>Goto original repo -> https://github.com/4SightAI/Aggi </li>
 <li>Click on Fork</li>
@@ -20,8 +26,7 @@ Aggi the AI
 </ol>
 
 
-#### Making Changes
-Using Github Desktop, do bellow steps
+#### Making Changes using Github Desktop
 <ol>
 <li>Fetch Origin -> to get the latest code on forked repo</li>
 <li>Do changes in text editor</li>
@@ -29,7 +34,10 @@ Using Github Desktop, do bellow steps
 <li>Push Origin -> your changes will be pushed to repo on github</li>
 </ol>
 
+<ul>
+<li>
 ## Environment Setup
+</li>
 <ol>
 <li>Install Python 3.11.9 (Ok for vector DB) from https://www.python.org/downloads/release/python-3119/</li>
 <li>Open the Github Desktop repo folder</li>
@@ -38,3 +46,4 @@ Using Github Desktop, do bellow steps
 <li>Start to install python packages</li>
 <li>Run application</li>
 </ol>
+</ul>
