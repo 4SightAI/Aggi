@@ -68,7 +68,7 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 def main(pdf):
-    raw_text = extract_pdf_text(PDF_PATH)
+    raw_text = extract_pdf_text(pdf)
     #cleaned = clean_text(raw_text)
     markdown_text = text_to_markdown(raw_text)
     documents = markdown_structure_split(markdown_text)
