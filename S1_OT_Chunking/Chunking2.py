@@ -1,27 +1,15 @@
-import fitz  # PyMuPDF
+import fitz
 import json
 import re
 
-# =========================
-# CONFIGURATION
-# =========================
-
 PDF_PATH = "./PDF/Harrison_CH_1_12.pdf"
-MIN_PARAGRAPH_LENGTH = 40  # characters
-
-# =========================
-# CLEANING UTIL
-# =========================
+MIN_PARAGRAPH_LENGTH = 40
 
 def clean_text(text: str) -> str:
     text = text.replace("\n", " ")
     text = re.sub(r"\s+", " ", text)
-    text = text.replace("- ", "")  # fix hyphen line breaks
+    text = text.replace("- ", "")
     return text.strip()
-
-# =========================
-# PARAGRAPH EXTRACTION
-# =========================
 
 def extract_paragraphs_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
@@ -50,9 +38,7 @@ def extract_paragraphs_from_pdf(pdf_path):
 
             para_id += 1
 
-        #print(blocks)
-
-        break
+        break #Get data for 1 page
 
         print(str(num) + " - " + str(len(blocks)) + " - " + str(val))
 
@@ -84,10 +70,6 @@ def extract_paragraphs_from_pdf_blocks(pdf_path):
 
     return paragraphs
 
-# =========================
-# MAIN
-# =========================
-
 def main():
     print("Reading PDF...")
     paragraphs = extract_paragraphs_from_pdf(PDF_PATH)
@@ -110,7 +92,6 @@ def main():
             f.write("},")
 
     paragraphs = extract_paragraphs_from_pdf_blocks(PDF_PATH)
-
 
 if __name__ == "__main__":
     main()
