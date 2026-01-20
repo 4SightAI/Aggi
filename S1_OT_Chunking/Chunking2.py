@@ -3,12 +3,12 @@ import json
 import re
 
 PDF_PATH = "./PDF/Harrison_CH_1_12.pdf"
-MIN_PARAGRAPH_LENGTH = 40  # characters
+MIN_PARAGRAPH_LENGTH = 40
 
 def clean_text(text: str) -> str:
     text = text.replace("\n", " ")
     text = re.sub(r"\s+", " ", text)
-    text = text.replace("- ", "")  # fix hyphen line breaks
+    text = text.replace("- ", "")
     return text.strip()
 
 def extract_paragraphs_from_pdf(pdf_path):
