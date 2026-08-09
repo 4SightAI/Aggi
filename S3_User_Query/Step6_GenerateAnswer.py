@@ -61,6 +61,12 @@ CONVERSATIONAL_SYSTEM_PROMPT = (
     "user know those will be answered from the verified medical sources when they ask one."
 )
 
+GENERAL_SYSTEM_PROMPT = (
+    "You are a knowledgeable general assistant. "
+    "Answer the user's question using your own knowledge. "
+    "Be thorough, accurate, and helpful."
+)
+
 # Reads the key from the environment so it never lives in source/ git history --
 # set OPENAI_API_KEY as a system/user environment variable before running this.
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -71,6 +77,8 @@ REWRITE_SYSTEM_PROMPT = (
     "Given a conversation history and a follow-up question, rewrite the follow-up "
     "into a single standalone medical question that can be understood without the "
     "conversation history and also fix obvious spelling mistakes in medical terms. "
+    "IMPORTANT: If the follow-up is in any language other than English, translate it "
+    "to English first, then apply all rewriting rules. Always output in English only. "
     "If the follow-up is unrelated to the conversation history and is a medical term "
     "or condition, treat it as a new topic and rewrite it as a complete standalone medical question. "
     "If the follow-up uses conversational phrasing like 'What do you know about X', "
@@ -212,7 +220,8 @@ def generate_answer(query: str, fetch_k: int = FETCH_K, history: list | None = N
 
 
 def generate_answer_stream(query: str, retrieval_query: str | None = None,
-                           fetch_k: int = FETCH_K, history: list | None = None):
+                           fetch_k: int = FETCH_K, history: list | None = None,
+                           internet_search: bool = False):
     """Streaming version of generate_answer.
 
     `query`          — the original user text; used for the LLM prompt so the
@@ -226,13 +235,27 @@ def generate_answer_stream(query: str, retrieval_query: str | None = None,
     """
     try:
         rq = retrieval_query or query
+
+        if internet_search:
+            with client.responses.stream(
+                model=GEN_MODEL,
+                tools=[{"type": "web_search_preview"}],
+                input=rq,
+                instructions=GENERAL_SYSTEM_PROMPT,
+            ) as stream:
+                for event in stream:
+                    if event.type == "response.output_text.delta":
+                        yield {"type": "token", "content": event.delta}
+            yield {"type": "done", "content": ""}
+            return
+
         results = QueryVector(rq, fetch_k)
         chunks = select_chunks(results)
 
         if not is_medical_mode(chunks):
             messages = [{"role": "system", "content": CONVERSATIONAL_SYSTEM_PROMPT}]
-            if history:
-                messages.extend(history)
+            # if history:
+            #     messages.extend(history)
             messages.append({"role": "user", "content": query})
         else:
             # Send citation trails before the first token
@@ -245,8 +268,8 @@ def generate_answer_stream(query: str, retrieval_query: str | None = None,
 
             user_prompt = build_prompt(rq, chunks)
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-            if history:
-                messages.extend(history)
+            # if history:
+            #     messages.extend(history)
             messages.append({"role": "user", "content": user_prompt})
 
         stream = client.chat.completions.create(model=GEN_MODEL, messages=messages, stream=True)

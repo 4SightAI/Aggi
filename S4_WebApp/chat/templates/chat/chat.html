@@ -211,6 +211,12 @@
             flex-shrink: 0;
         }
         .source-tag:hover { background: #dbeafe; }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
 
         /* ── Books Modal ── */
         .modal-backdrop {
@@ -427,6 +433,40 @@
         }
         .send-btn:hover { background: #1d4ed8; }
         .send-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+        .stop-btn {
+            display: none;
+            width: 36px; height: 36px;
+            background: #dc2626;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+            transition: background .2s;
+        }
+        .stop-btn:hover { background: #b91c1c; }
+        .internet-toggle {
+            font-size: 11px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            padding: 3px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all .2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .internet-toggle:hover { background: #dbeafe; }
+        .internet-toggle.active {
+            background: #1d4ed8;
+            color: #fff;
+            border-color: #1d4ed8;
+        }
         .input-hint {
             text-align: center;
             font-size: 11px;
@@ -590,15 +630,18 @@
     <div class="chat-header">
         <button class="hamburger" id="hamburger" aria-label="Open menu">☰</button>
         <h2>{{ conversation.title }}</h2>
-        <span class="source-tag">Verified Medical Sources</span>
+        <div class="header-actions">
+            <button type="button" class="internet-toggle" id="internet-toggle">🌐 Search Internet</button>
+            <span class="source-tag" id="open-books-modal">Verified Medical Sources</span>
+        </div>
     </div>
 
     <div class="messages" id="messages">
         {% if not messages %}
-            <div class="empty-state">
+            <div class="empty-state" id="empty-state">
                 <div class="empty-icon">🔬</div>
                 <h3>Hi, I'm Aggi — your Medical AI</h3>
-                <p>Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.</p>
+                <p id="empty-state-text">Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.</p>
             </div>
         {% else %}
             {% for message in messages %}
@@ -615,12 +658,14 @@
     <div class="input-area">
         <form action="{% url 'ask' conversation_id=conversation.id %}" method="post" id="ask-form">
             {% csrf_token %}
+            <input type="hidden" name="internet_search" id="internet-search-field" value="false">
             <div class="input-wrap">
                 <textarea name="query" id="query" rows="1" placeholder="Ask a medical question..." required></textarea>
                 <button class="send-btn" type="submit" id="send-btn">➤</button>
+                <button class="stop-btn" type="button" id="stop-btn">⏹</button>
             </div>
         </form>
-        <div class="input-hint">Aggi answers from verified medical sources only.</div>
+        <div class="input-hint" id="input-hint">Aggi answers from verified medical sources only.</div>
     </div>
 </main>
 
@@ -628,8 +673,31 @@
     const msgs = document.getElementById('messages');
     const ta   = document.getElementById('query');
     const sendBtn = document.getElementById('send-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const form = document.getElementById('ask-form');
+    const internetToggle = document.getElementById('internet-toggle');
+    const internetField = document.getElementById('internet-search-field');
+    const inputHint = document.getElementById('input-hint');
     const userInitial = "{{ request.user.username|first|upper }}";
+
+    let internetSearchOn = false;
+    const emptyStateText = document.getElementById('empty-state-text');
+    internetToggle.addEventListener('click', () => {
+        internetSearchOn = !internetSearchOn;
+        internetField.value = internetSearchOn ? 'true' : 'false';
+        internetToggle.classList.toggle('active', internetSearchOn);
+        inputHint.textContent = internetSearchOn
+            ? 'Search Internet is ON'
+            : 'Aggi answers from verified medical sources only.';
+        if (emptyStateText) {
+            emptyStateText.textContent = internetSearchOn
+                ? 'Search Internet is ON. I will answer your questions from live internet sources.'
+                : 'Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.';
+        }
+    });
+    const cancelUrl = "{% url 'cancel_ask' conversation_id=conversation.id %}";
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    let abortController = null;
 
     // Pre-process markdown to collapse blank lines between list items
     // so marked.js doesn't create <p> tags inside <li> elements (loose lists)
@@ -708,9 +776,24 @@
         bubble.appendChild(details);
     }
 
+    function setStreaming(active) {
+        sendBtn.style.display = active ? 'none' : 'inline-flex';
+        stopBtn.style.display = active ? 'inline-flex' : 'none';
+    }
+
+    stopBtn.addEventListener('click', async () => {
+        // Tell backend to cancel the running LLM thread
+        fetch(cancelUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken },
+        });
+        // Abort the SSE fetch on the client side
+        if (abortController) abortController.abort();
+    });
+
     async function submitMessage() {
         const query = ta.value.trim();
-        if (!query || sendBtn.disabled) return;
+        if (!query || stopBtn.style.display === 'inline-flex') return;
 
         // Immediately show user bubble
         const userBubble = addRow('user');
@@ -719,7 +802,6 @@
         // Clear input
         ta.value = '';
         ta.style.height = 'auto';
-        sendBtn.disabled = true;
 
         // Show assistant bubble with loading dots
         const assistantBubble = addRow('assistant');
@@ -733,8 +815,15 @@
         let fullText = '';
         let buffer = '';
 
+        abortController = new AbortController();
+        setStreaming(true);
+
         try {
-            const response = await fetch(form.action, { method: 'POST', body: formData });
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                signal: abortController.signal,
+            });
 
             if (!response.ok) throw new Error('Network error');
 
@@ -757,7 +846,6 @@
                     if (evt.type === 'token') {
                         if (!textStarted) { dots.remove(); textStarted = true; }
                         fullText += evt.content;
-                        // Show plain text during streaming for speed
                         assistantBubble.textContent = fullText;
                         msgs.scrollTop = msgs.scrollHeight;
 
@@ -765,13 +853,20 @@
                         citations = evt.content;
 
                     } else if (evt.type === 'done') {
-                        // Render full markdown once streaming is complete
                         assistantBubble.innerHTML = parseMarkdown(fullText);
                         if (citations) showCitations(assistantBubble, citations);
                         msgs.scrollTop = msgs.scrollHeight;
 
+                    } else if (evt.type === 'cancelled') {
+                        if (fullText) {
+                            assistantBubble.innerHTML = parseMarkdown(fullText);
+                        } else {
+                            dots.remove();
+                            assistantBubble.textContent = '[Response stopped]';
+                            assistantBubble.style.color = '#94a3b8';
+                        }
+
                     } else if (evt.type === 'title') {
-                        // Update sidebar title for the active conversation
                         const activeTitle = document.querySelector('.conv-item.active .conv-title');
                         if (activeTitle) activeTitle.textContent = evt.content;
                         document.title = evt.content + ' — Aggi: Medical AI';
@@ -784,13 +879,19 @@
                 }
             }
         } catch (err) {
-            dots.remove();
-            assistantBubble.textContent = 'Connection error. Please try again.';
-            assistantBubble.style.color = '#dc2626';
+            if (err.name === 'AbortError') {
+                // User clicked stop — backend handles the save, UI already updated via 'cancelled' event
+                if (!textStarted) dots.remove();
+            } else {
+                dots.remove();
+                assistantBubble.textContent = 'Connection error. Please try again.';
+                assistantBubble.style.color = '#dc2626';
+            }
+        } finally {
+            abortController = null;
+            setStreaming(false);
+            ta.focus();
         }
-
-        sendBtn.disabled = false;
-        ta.focus();
     }
 
     // Sidebar inline rename
