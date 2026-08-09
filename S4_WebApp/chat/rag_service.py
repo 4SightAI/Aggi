@@ -49,6 +49,6 @@ def answer_question(query, history_messages):
     return generate_answer(query, history=history)
 
 
-def answer_question_stream(query, retrieval_query, history_messages):
+def answer_question_stream(query, retrieval_query, history_messages, internet_search=False):
     history = build_history(history_messages)
-    yield from generate_answer_stream(query, retrieval_query=retrieval_query, history=history)
+    yield from generate_answer_stream(query, retrieval_query=retrieval_query, history=history, internet_search=internet_search)

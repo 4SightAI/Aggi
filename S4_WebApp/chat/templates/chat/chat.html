@@ -211,6 +211,12 @@
             flex-shrink: 0;
         }
         .source-tag:hover { background: #dbeafe; }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
 
         /* ── Books Modal ── */
         .modal-backdrop {
@@ -442,6 +448,25 @@
             transition: background .2s;
         }
         .stop-btn:hover { background: #b91c1c; }
+        .internet-toggle {
+            font-size: 11px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border: 1px solid #bfdbfe;
+            padding: 3px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all .2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .internet-toggle:hover { background: #dbeafe; }
+        .internet-toggle.active {
+            background: #1d4ed8;
+            color: #fff;
+            border-color: #1d4ed8;
+        }
         .input-hint {
             text-align: center;
             font-size: 11px;
@@ -605,15 +630,18 @@
     <div class="chat-header">
         <button class="hamburger" id="hamburger" aria-label="Open menu">☰</button>
         <h2>{{ conversation.title }}</h2>
-        <span class="source-tag">Verified Medical Sources</span>
+        <div class="header-actions">
+            <button type="button" class="internet-toggle" id="internet-toggle">🌐 Search Internet</button>
+            <span class="source-tag" id="open-books-modal">Verified Medical Sources</span>
+        </div>
     </div>
 
     <div class="messages" id="messages">
         {% if not messages %}
-            <div class="empty-state">
+            <div class="empty-state" id="empty-state">
                 <div class="empty-icon">🔬</div>
                 <h3>Hi, I'm Aggi — your Medical AI</h3>
-                <p>Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.</p>
+                <p id="empty-state-text">Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.</p>
             </div>
         {% else %}
             {% for message in messages %}
@@ -630,13 +658,14 @@
     <div class="input-area">
         <form action="{% url 'ask' conversation_id=conversation.id %}" method="post" id="ask-form">
             {% csrf_token %}
+            <input type="hidden" name="internet_search" id="internet-search-field" value="false">
             <div class="input-wrap">
                 <textarea name="query" id="query" rows="1" placeholder="Ask a medical question..." required></textarea>
                 <button class="send-btn" type="submit" id="send-btn">➤</button>
                 <button class="stop-btn" type="button" id="stop-btn">⏹</button>
             </div>
         </form>
-        <div class="input-hint">Aggi answers from verified medical sources only.</div>
+        <div class="input-hint" id="input-hint">Aggi answers from verified medical sources only.</div>
     </div>
 </main>
 
@@ -646,7 +675,26 @@
     const sendBtn = document.getElementById('send-btn');
     const stopBtn = document.getElementById('stop-btn');
     const form = document.getElementById('ask-form');
+    const internetToggle = document.getElementById('internet-toggle');
+    const internetField = document.getElementById('internet-search-field');
+    const inputHint = document.getElementById('input-hint');
     const userInitial = "{{ request.user.username|first|upper }}";
+
+    let internetSearchOn = false;
+    const emptyStateText = document.getElementById('empty-state-text');
+    internetToggle.addEventListener('click', () => {
+        internetSearchOn = !internetSearchOn;
+        internetField.value = internetSearchOn ? 'true' : 'false';
+        internetToggle.classList.toggle('active', internetSearchOn);
+        inputHint.textContent = internetSearchOn
+            ? 'Search Internet is ON'
+            : 'Aggi answers from verified medical sources only.';
+        if (emptyStateText) {
+            emptyStateText.textContent = internetSearchOn
+                ? 'Search Internet is ON. I will answer your questions from live internet sources.'
+                : 'Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.';
+        }
+    });
     const cancelUrl = "{% url 'cancel_ask' conversation_id=conversation.id %}";
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     let abortController = null;

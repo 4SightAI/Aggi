@@ -61,6 +61,12 @@ CONVERSATIONAL_SYSTEM_PROMPT = (
     "user know those will be answered from the verified medical sources when they ask one."
 )
 
+GENERAL_SYSTEM_PROMPT = (
+    "You are a knowledgeable general assistant. "
+    "Answer the user's question using your own knowledge. "
+    "Be thorough, accurate, and helpful."
+)
+
 # Reads the key from the environment so it never lives in source/ git history --
 # set OPENAI_API_KEY as a system/user environment variable before running this.
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -214,7 +220,8 @@ def generate_answer(query: str, fetch_k: int = FETCH_K, history: list | None = N
 
 
 def generate_answer_stream(query: str, retrieval_query: str | None = None,
-                           fetch_k: int = FETCH_K, history: list | None = None):
+                           fetch_k: int = FETCH_K, history: list | None = None,
+                           internet_search: bool = False):
     """Streaming version of generate_answer.
 
     `query`          — the original user text; used for the LLM prompt so the
@@ -228,6 +235,20 @@ def generate_answer_stream(query: str, retrieval_query: str | None = None,
     """
     try:
         rq = retrieval_query or query
+
+        if internet_search:
+            with client.responses.stream(
+                model=GEN_MODEL,
+                tools=[{"type": "web_search_preview"}],
+                input=rq,
+                instructions=GENERAL_SYSTEM_PROMPT,
+            ) as stream:
+                for event in stream:
+                    if event.type == "response.output_text.delta":
+                        yield {"type": "token", "content": event.delta}
+            yield {"type": "done", "content": ""}
+            return
+
         results = QueryVector(rq, fetch_k)
         chunks = select_chunks(results)
 

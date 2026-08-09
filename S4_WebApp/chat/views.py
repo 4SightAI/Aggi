@@ -108,6 +108,8 @@ def ask_view(request, conversation_id):
     if not query:
         return redirect("chat", conversation_id=conversation_id)
 
+    internet_search = request.POST.get("internet_search") == "true"
+
     history_messages = list(conversation.messages.filter(status="complete"))
 
     retrieval_query = get_retrieval_query(query, history_messages)
@@ -145,7 +147,7 @@ def ask_view(request, conversation_id):
         response_source = ["conversational"]
         captured_citations = [None]
         try:
-            for event in answer_question_stream(query, retrieval_query, history_messages):
+            for event in answer_question_stream(query, retrieval_query, history_messages, internet_search=internet_search):
                 if cancel_event.is_set():
                     partial = "".join(full_response).strip()
                     assistant_msg.content = partial or "[Response stopped]"
