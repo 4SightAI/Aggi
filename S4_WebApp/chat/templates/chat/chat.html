@@ -176,6 +176,7 @@
         .main {
             flex: 1;
             display: flex;
+            position: relative;
             flex-direction: column;
             height: 100vh;
             overflow: hidden;
@@ -467,6 +468,28 @@
             color: #fff;
             border-color: #1d4ed8;
         }
+        .internet-toast {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 360px;
+            width: calc(100% - 40px);
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,.25);
+        }
+        .internet-toast.show { opacity: 1; }
+
         .input-hint {
             text-align: center;
             font-size: 11px;
@@ -532,6 +555,7 @@
             .input-wrap textarea { font-size: 14px; }
             .send-btn { width: 36px; height: 36px; font-size: 16px; }
             .input-hint { display: none; }
+            .internet-toggle .toggle-label { display: none; }
 
             .empty-state { padding: 24px 20px; }
             .empty-icon { font-size: 36px; }
@@ -631,7 +655,7 @@
         <button class="hamburger" id="hamburger" aria-label="Open menu">☰</button>
         <h2>{{ conversation.title }}</h2>
         <div class="header-actions">
-            <button type="button" class="internet-toggle" id="internet-toggle">🌐 Search Internet</button>
+            <button type="button" class="internet-toggle" id="internet-toggle">🌐 <span class="toggle-label">Search Internet</span></button>
             <span class="source-tag" id="open-books-modal">Verified Medical Sources</span>
         </div>
     </div>
@@ -667,6 +691,10 @@
         </form>
         <div class="input-hint" id="input-hint">Aggi answers from verified medical sources only.</div>
     </div>
+
+    <div class="internet-toast" id="internet-toast">
+        Internet Search enabled. Responses will be sourced from the web and may not be accurate. Always verify medical information before acting on it.
+    </div>
 </main>
 
 <script>
@@ -682,6 +710,9 @@
 
     let internetSearchOn = false;
     const emptyStateText = document.getElementById('empty-state-text');
+    const internetToast = document.getElementById('internet-toast');
+    let toastTimer = null;
+
     internetToggle.addEventListener('click', () => {
         internetSearchOn = !internetSearchOn;
         internetField.value = internetSearchOn ? 'true' : 'false';
@@ -693,6 +724,14 @@
             emptyStateText.textContent = internetSearchOn
                 ? 'Search Internet is ON. I will answer your questions from live internet sources.'
                 : 'Ask me anything about medicine, pathology, or clinical topics. I answer from verified medical sources and support follow-up questions.';
+        }
+        if (internetSearchOn) {
+            clearTimeout(toastTimer);
+            internetToast.classList.add('show');
+            toastTimer = setTimeout(() => internetToast.classList.remove('show'), 3000);
+        } else {
+            clearTimeout(toastTimer);
+            internetToast.classList.remove('show');
         }
     });
     const cancelUrl = "{% url 'cancel_ask' conversation_id=conversation.id %}";

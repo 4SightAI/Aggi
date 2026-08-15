@@ -18,6 +18,13 @@ myvenv/
 .claude
 .git
 
+#SSL Certificates
+certs/
+*.crt
+*.key
+*.pem
+requirements.txt
+
 # C extensions
 *.so
 
